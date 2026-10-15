@@ -1,0 +1,97 @@
+{{- if .Values.mariadb.enabled -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "woocommerce.mariadb.fullname" . }}
+  labels:
+    {{- include "woocommerce.mariadb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "woocommerce.mariadb.fullname" . }}
+  replicas: {{ .Values.mariadb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "woocommerce.mariadb.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce.mariadb.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: mariadb
+          image: "{{ .Values.mariadb.image.repository }}:{{ .Values.mariadb.image.tag }}"
+          imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-root-password
+            - name: MARIADB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-database
+            - name: MARIADB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-username
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-password
+          ports:
+            - name: mysql
+              containerPort: 3306
+              protocol: TCP
+          {{- if .Values.mariadb.probes.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "mariadb-admin ping -h localhost -u root --password=\"$MARIADB_ROOT_PASSWORD\""
+            initialDelaySeconds: {{ .Values.mariadb.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mariadb.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mariadb.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mariadb.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.mariadb.probes.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "mariadb-admin ping -h localhost -u root --password=\"$MARIADB_ROOT_PASSWORD\""
+            initialDelaySeconds: {{ .Values.mariadb.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mariadb.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mariadb.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mariadb.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.mariadb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+  {{- if .Values.mariadb.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "woocommerce.mariadb.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.mariadb.persistence.accessMode | quote }}
+        {{- if .Values.mariadb.persistence.storageClass }}
+        storageClassName: {{ .Values.mariadb.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.mariadb.persistence.size | quote }}
+  {{- else }}
+      volumes:
+        - name: data
+          emptyDir: {}
+  {{- end }}
+{{- end }}

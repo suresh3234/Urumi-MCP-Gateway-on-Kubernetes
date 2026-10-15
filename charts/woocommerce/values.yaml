@@ -1,0 +1,113 @@
+mariadb:
+  enabled: true
+  nameOverride: "mariadb"
+  replicaCount: 1
+
+  image:
+    repository: mariadb
+    tag: "10.11"
+    pullPolicy: IfNotPresent
+
+  auth:
+    database: "wordpress"
+    username: "wordpress"
+    password: "placeholder-db-password-change-me"
+    rootPassword: "placeholder-root-password-change-me"
+    existingSecret: ""
+
+  service:
+    name: mariadb
+    type: ClusterIP
+    port: 3306
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  probes:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+wordpress:
+  enabled: true
+  nameOverride: "wordpress"
+  replicaCount: 1
+
+  image:
+    repository: wordpress
+    tag: "6.7-apache"
+    pullPolicy: IfNotPresent
+
+  auth:
+    adminUser: "admin"
+    adminPassword: "placeholder-admin-password-change-me"
+    adminEmail: "admin@example.com"
+    existingSecret: ""
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  ingress:
+    enabled: true
+    className: ""
+    host: shop.localtest.me
+    annotations: {}
+    tls: []
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+
+  resources:
+    limits:
+      cpu: 800m
+      memory: 768Mi
+    requests:
+      cpu: 150m
+      memory: 256Mi
+
+  probes:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 45
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readiness:
+      enabled: true
+      initialDelaySeconds: 20
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  woocommerce:
+    enabled: true
+    siteTitle: "Urumi MCP Store"
+    enableCOD: true
+    cliImage:
+      repository: wordpress
+      tag: "cli"
+      pullPolicy: IfNotPresent

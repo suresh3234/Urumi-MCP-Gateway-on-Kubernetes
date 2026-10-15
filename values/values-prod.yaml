@@ -1,0 +1,96 @@
+# Production environment configuration for k3s / Kubernetes
+global:
+  environment: prod
+  domain: urumi.example.com
+  tls:
+    enabled: true
+    secretName: urumi-tls-secret
+  image:
+    tag: "v1.0.0"
+    pullPolicy: IfNotPresent
+
+gateway:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  gateway:
+    port: 8080
+    wooMcpUrl: "http://woo-mcp:4001/sse"
+    wooMcpTimeoutMs: 10000
+    discoveryCacheTtlMs: 60000
+    auth:
+      existingSecret: "production-gateway-secret"
+  ingress:
+    enabled: true
+    host: gateway.urumi.example.com
+    tls:
+      - secretName: gateway-tls-secret
+        hosts:
+          - gateway.urumi.example.com
+
+dashboard:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    host: dashboard.urumi.example.com
+    tls:
+      - secretName: dashboard-tls-secret
+        hosts:
+          - dashboard.urumi.example.com
+
+chatAgent:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 5000
+  ingress:
+    enabled: true
+    host: chat.urumi.example.com
+    tls:
+      - secretName: chat-tls-secret
+        hosts:
+          - chat.urumi.example.com
+
+# Production WooCommerce configuration - credentials provided via pre-created Secrets
+mariadb:
+  replicaCount: 1
+  auth:
+    existingSecret: "production-mariadb-secret"
+  persistence:
+    size: 20Gi
+
+wordpress:
+  replicaCount: 2
+  auth:
+    existingSecret: "production-wordpress-admin-secret"
+  ingress:
+    enabled: true
+    host: shop.urumi.example.com
+    tls:
+      - secretName: shop-tls-secret
+        hosts:
+          - shop.urumi.example.com
+  persistence:
+    size: 20Gi
+
+wooMcp:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 4001
+
+utilsMcp:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 4002
+
+notesMcp:
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 4003

@@ -166,13 +166,13 @@ urumi-mcp-gateway/
 
 Run unit tests across all applications:
 ```bash
-npm test --prefix apps/gateway      # 28 tests passing (includes SSRF security tests)
+npm test --prefix apps/gateway      # 31 tests passing (includes SSRF security tests)
 npm test --prefix apps/dashboard    # 5 tests passing (React BFF & health checks)
 npm test --prefix apps/chat-agent   # 13 tests passing (includes LLM tool-calling cycle)
 npm test --prefix apps/woo-mcp      # 31 tests passing
 npm test --prefix apps/notes-mcp    # 5 tests passing
 npm test --prefix apps/utils-mcp    # 7 tests passing
 ```
-**Total Unit Tests: 89 / 89 Passing (100% Pass Rate).**
+**Total Unit Tests: 92 / 92 Passing (100% Pass Rate).**
 #   U r u m i - M C P - G a t e w a y - o n - K u b e r n e t e s  
  

@@ -1,0 +1,202 @@
+{{- if and .Values.wordpress.enabled .Values.wordpress.woocommerce.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "woocommerce.wordpress.fullname" . }}-init-wc
+  labels:
+    {{- include "woocommerce.wordpress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init-job
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce.wordpress.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init-job
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        fsGroup: 33
+      initContainers:
+        {{- if .Values.wordpress.persistence.enabled }}
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - "mkdir -p /var/www/html/wp-content/plugins /var/www/html/wp-content/themes /var/www/html/wp-content/uploads /var/www/html/wp-content/upgrade && chown -R 33:33 /var/www/html/wp-content && chmod -R 777 /var/www/html/wp-content"
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+        {{- end }}
+        - name: wait-for-mariadb
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for MariaDB at {{ include "woocommerce.mariadb.fullname" . }}:{{ .Values.mariadb.service.port }}..."
+              until nc -z -w 2 {{ include "woocommerce.mariadb.fullname" . }} {{ .Values.mariadb.service.port }}; do
+                echo "MariaDB is unavailable - sleeping 2s"
+                sleep 2
+              done
+              echo "MariaDB is reachable."
+        - name: wait-for-wordpress
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for WordPress service at {{ include "woocommerce.wordpress.fullname" . }}:{{ .Values.wordpress.service.port }}..."
+              until nc -z -w 2 {{ include "woocommerce.wordpress.fullname" . }} {{ .Values.wordpress.service.port }}; do
+                echo "WordPress service is unavailable - sleeping 3s"
+                sleep 3
+              done
+              echo "WordPress service is reachable."
+      containers:
+        - name: wp-cli-init
+          image: "{{ .Values.wordpress.woocommerce.cliImage.repository }}:{{ .Values.wordpress.woocommerce.cliImage.tag }}"
+          imagePullPolicy: {{ .Values.wordpress.woocommerce.cliImage.pullPolicy }}
+          securityContext:
+            runAsUser: 0
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ include "woocommerce.mariadb.fullname" . }}:{{ .Values.mariadb.service.port }}"
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-database
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-username
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-password
+            - name: WORDPRESS_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.wordpress.secretName" . }}
+                  key: admin-user
+            - name: WORDPRESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.wordpress.secretName" . }}
+                  key: admin-password
+            - name: WORDPRESS_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.wordpress.secretName" . }}
+                  key: admin-email
+            - name: WORDPRESS_URL
+              value: "http://{{ .Values.wordpress.ingress.host }}"
+            - name: WORDPRESS_TITLE
+              value: {{ .Values.wordpress.woocommerce.siteTitle | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "==> Configuring WordPress and WooCommerce..."
+              cd /var/www/html
+
+              # Ensure wp-content permissions and structure
+              mkdir -p /var/www/html/wp-content/plugins /var/www/html/wp-content/themes /var/www/html/wp-content/uploads /var/www/html/wp-content/upgrade
+              chmod -R 777 /var/www/html/wp-content || true
+
+              # Ensure WordPress core files exist in working directory for WP-CLI
+              if [ ! -f "wp-includes/version.php" ]; then
+                echo "==> Downloading WordPress core files..."
+                wp core download --allow-root --skip-content --force || true
+              fi
+
+              # Ensure wp-config.php exists
+              if [ ! -f "wp-config.php" ]; then
+                echo "==> Creating wp-config.php..."
+                wp config create \
+                  --dbname="$WORDPRESS_DB_NAME" \
+                  --dbuser="$WORDPRESS_DB_USER" \
+                  --dbpass="$WORDPRESS_DB_PASSWORD" \
+                  --dbhost="$WORDPRESS_DB_HOST" \
+                  --dbprefix="wp_" \
+                  --extra-php="define('FS_METHOD', 'direct');" \
+                  --allow-root \
+                  --force
+              fi
+
+              # Check if WordPress core is installed in database
+              echo "==> Checking if WordPress core is installed in DB..."
+              if ! wp core is-installed --allow-root 2>/dev/null; then
+                echo "==> Installing WordPress core..."
+                wp core install \
+                  --url="$WORDPRESS_URL" \
+                  --title="$WORDPRESS_TITLE" \
+                  --admin_user="$WORDPRESS_ADMIN_USER" \
+                  --admin_password="$WORDPRESS_ADMIN_PASSWORD" \
+                  --admin_email="$WORDPRESS_ADMIN_EMAIL" \
+                  --skip-email \
+                  --allow-root
+              else
+                echo "==> WordPress core is already installed."
+              fi
+
+              # Install and activate WooCommerce
+              echo "==> Checking WooCommerce plugin status..."
+              if ! wp plugin is-installed woocommerce --allow-root 2>/dev/null; then
+                echo "==> Installing and activating WooCommerce..."
+                wp plugin install woocommerce --activate --allow-root
+              else
+                echo "==> Activating WooCommerce if inactive..."
+                wp plugin activate woocommerce --allow-root || true
+              fi
+
+              # Configure permalinks and install standard WooCommerce pages
+              echo "==> Configuring permalink structure and standard pages..."
+              wp eval "WC_Install::create_pages();" --allow-root || true
+              wp rewrite structure '/%postname%/' --allow-root
+
+              # Enable Cash on Delivery (COD) payment gateway
+              {{- if .Values.wordpress.woocommerce.enableCOD }}
+              echo "==> Enabling Cash on Delivery (COD)..."
+              wp option update woocommerce_cod_settings '{"enabled":"yes","title":"Cash on delivery","description":"Pay with cash upon delivery.","instructions":"Pay with cash upon delivery.","enable_for_methods":[],"enable_for_virtual":"yes"}' --format=json --allow-root
+              {{- end }}
+
+              # Create sample product if store is empty
+              echo "==> Checking existing products..."
+              PRODUCT_COUNT=$(wp post list --post_type=product --format=count --allow-root 2>/dev/null || echo "0")
+              if [ "$PRODUCT_COUNT" = "0" ] || [ -z "$PRODUCT_COUNT" ]; then
+                echo "==> Seeding sample product..."
+                wp post create \
+                  --post_type=product \
+                  --post_title="MCP Gateway Test Product" \
+                  --post_status=publish \
+                  --post_content="Sample product for MCP Gateway and WooCommerce testing." \
+                  --meta_input='{"_regular_price":"49.99","_price":"49.99","_visibility":"visible","_stock_status":"instock"}' \
+                  --allow-root
+              else
+                echo "==> Products already exist ($PRODUCT_COUNT found)."
+              fi
+
+              # Ensure permissions on wp-content after installations for www-data (uid 33)
+              chown -R 33:33 /var/www/html/wp-content || true
+              chmod -R 775 /var/www/html/wp-content || true
+
+              echo "==> WooCommerce initialization completed successfully."
+          volumeMounts:
+            {{- if .Values.wordpress.persistence.enabled }}
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+            {{- end }}
+      volumes:
+        {{- if .Values.wordpress.persistence.enabled }}
+        - name: wp-content
+          persistentVolumeClaim:
+            claimName: {{ include "woocommerce.wordpress.fullname" . }}-content
+        {{- end }}
+{{- end }}

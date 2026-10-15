@@ -1,0 +1,47 @@
+replicaCount: 1
+
+image:
+  repository: woo-mcp
+  pullPolicy: IfNotPresent
+  tag: "local"
+
+service:
+  type: ClusterIP
+  port: 4001
+
+woocommerce:
+  url: "http://wordpress:80"
+  apiTimeoutMs: 10000
+  auth:
+    existingSecret: "woo-mcp-secret"
+    consumerKey: ""
+    consumerSecret: ""
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
+
+probes:
+  liveness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false

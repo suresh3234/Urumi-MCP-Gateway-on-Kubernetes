@@ -1,0 +1,61 @@
+replicaCount: 1
+
+image:
+  repository: gateway
+  pullPolicy: IfNotPresent
+  tag: "local"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+gateway:
+  port: 8080
+  wooMcpUrl: "http://woo-mcp:4001/sse"
+  wooMcpTimeoutMs: 10000
+  discoveryCacheTtlMs: 30000
+  auth:
+    existingSecret: "gateway-secret"
+    apiKeySalt: "placeholder-api-key-salt-change-me"
+    initialAdminKey: "placeholder-admin-key-change-me"
+    initialMemberKey: "placeholder-member-key-change-me"
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: gateway.localtest.me
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
+
+probes:
+  liveness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false

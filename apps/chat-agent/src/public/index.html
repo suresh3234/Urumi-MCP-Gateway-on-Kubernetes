@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Urumi AI Store Assistant — Team Chat Agent</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="chat-layout">
+    <!-- Top Bar -->
+    <header class="chat-topbar">
+      <div class="brand">
+        <div class="brand-icon">🤖</div>
+        <div>
+          <h1>Urumi Store Assistant</h1>
+          <span class="subtitle">AI Agent connecting to WooCommerce via MCP Gateway</span>
+        </div>
+      </div>
+      <div class="topbar-status">
+        <div class="user-selector-container" style="display:flex;align-items:center;margin-right:8px;">
+          <span style="font-size:0.75rem;color:#94a3b8;margin-right:6px;font-weight:600;">ACTIVE IDENTITY:</span>
+          <select id="user-select" style="background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:0.8rem;font-weight:600;cursor:pointer;">
+            <option value="user_b_member" selected>👤 User B (Member)</option>
+            <option value="user_a_admin">👑 User A (Admin)</option>
+            <option value="custom">🔑 Custom Key...</option>
+          </select>
+        </div>
+        <div class="status-pill" id="gateway-status-pill">
+          <span class="status-dot dot-healthy"></span>
+          <span id="gateway-status-text">Gateway Connected</span>
+        </div>
+        <div class="status-pill pill-neutral" id="model-status-pill">
+          <span>🧠 <strong id="model-name-text">gpt-4o-mini</strong></span>
+        </div>
+        <button id="new-chat-btn" class="btn btn-sm btn-outline" title="Clear conversation history">
+          🔄 New Chat
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Chat Container -->
+    <main class="chat-main">
+      <div class="messages-container" id="messages-container">
+        <!-- Welcome Greeting -->
+        <div class="message-row assistant">
+          <div class="avatar">🤖</div>
+          <div class="message-bubble">
+            <p>Hello! I am your <strong>Urumi Store Assistant</strong>. I interact with your live store, calculation engines, and order notes securely through the <strong>Urumi MCP Gateway</strong>.</p>
+            <p class="mt-2">I operate as an authenticated <strong>team member</strong>. Every tool call I make is validated by Gateway RBAC and logged to the central audit trail.</p>
+            <div class="suggestions-grid mt-3">
+              <button class="suggestion-pill" data-prompt="Show me the products available in my store">📦 Show Products</button>
+              <button class="suggestion-pill" data-prompt="What is the price after a 20% discount on 150?">🏷️ 20% Discount on 150</button>
+              <button class="suggestion-pill" data-prompt="What orders came in today?">📋 Today's Orders</button>
+              <button class="suggestion-pill" data-prompt="Find order 12 and tell me its status">🔍 Order 12 Status</button>
+              <button class="suggestion-pill" data-prompt="Show notes associated with orders">📝 Order Notes</button>
+              <button class="suggestion-pill" data-prompt="Create a new product named Demo T-Shirt for 25">🚫 Create Product (Test RBAC)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Bar -->
+      <div class="quick-bar">
+        <span class="quick-label">Suggested prompts:</span>
+        <button class="quick-btn" data-prompt="List products in store">📦 Products</button>
+        <button class="quick-btn" data-prompt="Calculate 20% discount on 150">🏷️ Discount</button>
+        <button class="quick-btn" data-prompt="Find order 12 and tell me its status">🔍 Order #12</button>
+        <button class="quick-btn" data-prompt="Create product T-Shirt 25">🚫 Mutating Tool Test</button>
+      </div>
+
+      <!-- Input Bar -->
+      <footer class="chat-input-bar">
+        <form id="chat-form" class="input-form">
+          <input
+            type="text"
+            id="user-input"
+            placeholder="Ask about products, orders, discounts, or notes..."
+            autocomplete="off"
+            required
+          />
+          <button type="submit" id="send-btn" class="btn btn-primary">
+            <span>Send</span> 🚀
+          </button>
+        </form>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Tool Details Inspection Modal -->
+  <div id="tool-inspector-modal" class="modal-backdrop">
+    <div class="modal card">
+      <div class="modal-header">
+        <h3 id="modal-tool-title">Tool Execution Inspection</h3>
+        <button class="modal-close-btn" onclick="window.closeInspector()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="tool-meta-row">
+          <div><strong>Upstream:</strong> <span id="modal-upstream-id">woo-mcp</span></div>
+          <div><strong>Duration:</strong> <span id="modal-duration">0ms</span></div>
+          <div><strong>Status:</strong> <span id="modal-status">SUCCESS</span></div>
+        </div>
+        <div class="form-group mt-3">
+          <label>Tool Arguments Submitted</label>
+          <pre id="modal-args" class="code-box"></pre>
+        </div>
+        <div class="form-group mt-3">
+          <label>Tool Result Received</label>
+          <pre id="modal-result" class="code-box"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="window.closeInspector()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

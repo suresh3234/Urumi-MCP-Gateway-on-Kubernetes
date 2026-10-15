@@ -1,0 +1,17 @@
+{{- if .Values.mariadb.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "woocommerce.mariadb.fullname" . }}
+  labels:
+    {{- include "woocommerce.mariadb.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.mariadb.service.type }}
+  ports:
+    - name: mysql
+      port: {{ .Values.mariadb.service.port }}
+      targetPort: mysql
+      protocol: TCP
+  selector:
+    {{- include "woocommerce.mariadb.selectorLabels" . | nindent 4 }}
+{{- end }}

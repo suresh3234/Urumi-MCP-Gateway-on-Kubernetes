@@ -1,0 +1,108 @@
+{{- if .Values.wordpress.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "woocommerce.wordpress.fullname" . }}
+  labels:
+    {{- include "woocommerce.wordpress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.wordpress.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "woocommerce.wordpress.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "woocommerce.wordpress.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 33
+      {{- if .Values.wordpress.persistence.enabled }}
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - "chown -R 33:33 /var/www/html/wp-content && chmod -R 775 /var/www/html/wp-content"
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+      {{- end }}
+      containers:
+        - name: wordpress
+          image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
+          imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ include "woocommerce.mariadb.fullname" . }}:{{ .Values.mariadb.service.port }}"
+            - name: WORDPRESS_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-database
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-username
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "woocommerce.mariadb.secretName" . }}
+                  key: mariadb-password
+            - name: WORDPRESS_TABLE_PREFIX
+              value: "wp_"
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                /* Reverse proxy and dynamic host resolution */
+                if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+                    $_SERVER['HTTPS'] = 'on';
+                }
+                if (isset($_SERVER['HTTP_HOST'])) {
+                    define('WP_HOME', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://') . $_SERVER['HTTP_HOST']);
+                    define('WP_SITEURL', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://') . $_SERVER['HTTP_HOST']);
+                }
+                define('FS_METHOD', 'direct');
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          {{- if .Values.wordpress.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.wordpress.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.wordpress.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.wordpress.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /wp-login.php
+              port: http
+            initialDelaySeconds: {{ .Values.wordpress.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.wordpress.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.wordpress.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.wordpress.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.wordpress.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.wordpress.persistence.enabled }}
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+            {{- end }}
+      volumes:
+        {{- if .Values.wordpress.persistence.enabled }}
+        - name: wp-content
+          persistentVolumeClaim:
+            claimName: {{ include "woocommerce.wordpress.fullname" . }}-content
+        {{- end }}
+{{- end }}

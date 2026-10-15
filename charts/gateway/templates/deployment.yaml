@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gateway.fullname" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gateway.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.securityContext }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.securityContext }}
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+          {{- end }}
+          env:
+            - name: PORT
+              value: {{ .Values.gateway.port | default .Values.service.port | quote }}
+            - name: WOO_MCP_URL
+              value: {{ .Values.gateway.wooMcpUrl | quote }}
+            - name: WOO_MCP_TIMEOUT_MS
+              value: {{ .Values.gateway.wooMcpTimeoutMs | quote }}
+            - name: DISCOVERY_CACHE_TTL_MS
+              value: {{ .Values.gateway.discoveryCacheTtlMs | quote }}
+            - name: API_KEY_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auth.existingSecret | default (printf "%s-secret" (include "gateway.fullname" .)) }}
+                  key: api-key-salt
+                  optional: true
+            - name: INITIAL_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auth.existingSecret | default (printf "%s-secret" (include "gateway.fullname" .)) }}
+                  key: initial-admin-key
+                  optional: true
+            - name: INITIAL_MEMBER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.auth.existingSecret | default (printf "%s-secret" (include "gateway.fullname" .)) }}
+                  key: initial-member-key
+                  optional: true
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

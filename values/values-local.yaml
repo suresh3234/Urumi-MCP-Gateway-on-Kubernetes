@@ -1,0 +1,78 @@
+# Local environment configuration for k3d
+global:
+  environment: local
+  domain: localtest.me
+  tls:
+    enabled: false
+  image:
+    tag: local
+    pullPolicy: IfNotPresent
+
+gateway:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8080
+  gateway:
+    port: 8080
+    wooMcpUrl: "http://woo-mcp:4001/sse"
+    wooMcpTimeoutMs: 10000
+    discoveryCacheTtlMs: 30000
+    auth:
+      existingSecret: "gateway-secret"
+      apiKeySalt: "placeholder-api-key-salt-change-me"
+      initialAdminKey: "placeholder-admin-key-change-me"
+      initialMemberKey: "placeholder-member-key-change-me"
+  ingress:
+    enabled: true
+    host: gateway.localtest.me
+
+dashboard:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    host: dashboard.localtest.me
+
+chatAgent:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 5000
+  ingress:
+    enabled: true
+    host: chat.localtest.me
+
+# WooCommerce Chart values
+mariadb:
+  replicaCount: 1
+  persistence:
+    size: 5Gi
+
+wordpress:
+  replicaCount: 1
+  ingress:
+    enabled: true
+    host: shop.localtest.me
+  persistence:
+    size: 5Gi
+
+wooMcp:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 4001
+
+utilsMcp:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 4002
+
+notesMcp:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 4003
